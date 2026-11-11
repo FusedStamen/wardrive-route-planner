@@ -6,6 +6,32 @@ It is built for the WatchDogsGo / WDGoWars game and reads live cell state from a
 
 It runs as a single small Docker container (Python standard library only, one HTML page with a canvas map). It was written for a Raspberry Pi 5 behind a Cloudflare Tunnel and used from Safari on an iPhone, but nothing in it is specific to that.
 
+## Screenshots
+
+Screenshots use a Tampa area and a generic start address. All gain numbers are estimates.
+
+Set a start, a time budget and what matters to you, then plan a route:
+
+<img src="docs/img/planner-form-and-gain.png" alt="Route form with time budget and weight sliders, followed by the estimated gain for the planned route" width="420">
+
+The route is drawn over the cell map, coloured by owner and by value for your weights:
+
+<img src="docs/img/route-map.png" alt="Estimated gain summary and a map of cells with the planned route drawn on top" width="420">
+
+See where extra minutes stop paying off and which cells drive the score:
+
+<img src="docs/img/gain-table-and-best-cells.png" alt="Gain versus driving time table and the best cells on the route" width="420">
+
+Navigate with short Apple Maps legs, or load the GPX in OsmAnd:
+
+<img src="docs/img/navigation-legs.png" alt="Navigation card with Apple Maps legs and GPX buttons" width="420">
+
+Load your own WiGLE coverage and recent density, and tune the assumptions behind the estimates:
+
+<img src="docs/img/wigle-data-cards.png" alt="Cards for uploading WiGLE cell heat and WiGLE density files" width="420">
+
+<img src="docs/img/assumptions.png" alt="Assumptions card with pass fraction, capture rates and density calibration" width="420">
+
 ## Status
 
 Be clear about what has and has not been checked:
@@ -131,4 +157,4 @@ docs/                  density.md, tuning.md, reference.md
 
 ## License
 
-No license has been chosen yet, so all rights are reserved by default. Add a `LICENSE` file before inviting others to reuse it.
+MIT. See [LICENSE](LICENSE).
