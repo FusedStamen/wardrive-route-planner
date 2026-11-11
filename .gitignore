@@ -1,0 +1,12 @@
+# secrets
+.env
+.env.*
+!.env.example
+# your drives, coverage and areas live in data/ - never commit them
+data/*
+!data/.keep
+# pre-built packs can contain your Home and Office points
+app/seed/
+__pycache__/
+*.pyc
+*.tmp
