@@ -80,7 +80,7 @@ Each area is a "pack": one node per 0.02 degree grid cell (about 2 km), snapped 
 
 | File | What it is | Used for |
 |---|---|---|
-| `data/wigle_cell_heat.csv` | Your own WiGLE coverage per cell | Knowing which cells you have already covered, which lowers expected new WiFi |
+| `data/wigle_cell_heat.csv` | Your own WiGLE coverage per cell, from [`wigle_cell_heat.py`](https://github.com/FusedStamen/Wigle/tree/main/wigle_cell_heat) | Knowing which cells you have already covered, which lowers expected new WiFi |
 | `data/wigle_density.csv` | Recent WiFi networks WiGLE has seen per cell, from [`wigle_density.py`](https://github.com/FusedStamen/Wigle/tree/main/wigle_density) | Valuing cells nobody has recorded yet |
 
 Both are uploaded in the page (each has its own card) or copied into `data/`. Formats are in [docs/reference.md](docs/reference.md). The density workflow, calibration and the fallback when it is missing are in [docs/density.md](docs/density.md).
@@ -126,7 +126,7 @@ docs/                  density.md, tuning.md, reference.md
 
 ## Related projects
 
-- [FusedStamen/Wigle](https://github.com/FusedStamen/Wigle): WiGLE tools. [`wigle_density`](https://github.com/FusedStamen/Wigle/tree/main/wigle_density) builds the density file for this planner.
+- [FusedStamen/Wigle](https://github.com/FusedStamen/Wigle): WiGLE tools. [`wigle_density`](https://github.com/FusedStamen/Wigle/tree/main/wigle_density) builds the density file for this planner, and [`wigle_cell_heat`](https://github.com/FusedStamen/Wigle/tree/main/wigle_cell_heat) builds `wigle_cell_heat.csv` from your own WiGLE exports.
 - warroom: the fan-made WDGoWars companion app this planner reads state from. Add a link to the project you use here.
 
 ## License
