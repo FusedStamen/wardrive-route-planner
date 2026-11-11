@@ -26,6 +26,8 @@ Presence saturates quickly. A cell expected to give about 1.5 new WiFi is alread
 | Rescan rate of your APs | 0.03 | Share of your existing APs in a cell that a pass rescans (capped at 800 per cell) |
 | BLE per new WiFi | 2.6 | Expected new BLE for each new WiFi |
 | Max new WiFi per cell | 3000 | Upper limit on the estimate for one cell |
+| Floor, cells you hold | 0.001 | Smallest share of the holder count still expected as new WiFi in a cell you hold. Kept very low because cells you already hold nearly fully gain almost nothing on a repeat pass |
+| Floor, other cells | 0.05 | The same floor for cells held by others or unheld, where a covered-looking cell can still hold unrecorded WiFi |
 | New WiFi guess, unvisited cell (last resort) | 1.5 | Used only when there is no density and no charted neighbor |
 | WiGLE density factor (0 = auto fit) | 0 | Expected holder count per recent WiGLE network. 0 fits it from your data |
 | Neighbor fallback fraction | 0.5 | Share of the nearby average holder count assumed for an unvisited cell without density |
@@ -38,7 +40,7 @@ The defaults for pass fraction, capture rates, rescan rate and BLE ratio were se
 
 For one pass through a cell:
 
-- Charted cell with holder count `cnt`: `coverage = min(1, max(your APs, WiGLE WiFi nets from your heat file) / cnt)`, then `new WiFi = min(cap, pass x cnt x max(1 - coverage, 0.05))`.
+- Charted cell with holder count `cnt`: `coverage = min(1, max(your APs, WiGLE WiFi nets from your heat file) / cnt)`, then `new WiFi = min(cap, pass x cnt x max(1 - coverage, floor))`, where `floor` is the "cells you hold" floor (0.001) for your cells and the "other cells" floor (0.05) otherwise. The floors were split after the 2026-11-11 drive: cells you held at over 99 percent gained 0.02 percent of the holder count or less, where the old single floor predicted about 1 percent.
 - Unvisited cell: expected holder count from [density or neighbors](density.md), then `new WiFi = min(cap, max(0.1, pass x expected count))`.
 - `new BLE = BLE ratio x new WiFi`.
 - `captures = capture rate x new WiFi`, with the rate depending on who holds the cell (0.05 for unheld).
