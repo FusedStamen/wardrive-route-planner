@@ -127,7 +127,7 @@ docs/                  density.md, tuning.md, reference.md
 ## Related projects
 
 - [FusedStamen/Wigle](https://github.com/FusedStamen/Wigle): WiGLE tools. [`wigle_density`](https://github.com/FusedStamen/Wigle/tree/main/wigle_density) builds the density file for this planner, and [`wigle_cell_heat`](https://github.com/FusedStamen/Wigle/tree/main/wigle_cell_heat) builds `wigle_cell_heat.csv` from your own WiGLE exports.
-- warroom: the fan-made WDGoWars companion app this planner reads state from. Add a link to the project you use here.
+- [warroom](https://github.com/FusedStamen/warroom): the fan-made WDGoWars companion app this planner reads state from (`/api/state`).
 
 ## License
 
