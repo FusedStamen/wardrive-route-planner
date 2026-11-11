@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wardrive Route Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one narrow column of cards, map in the middle, tables you can scan with a thumb. */
+:root{
+  --bg:#f3f4f1; --card:#ffffff; --ink:#172126; --mute:#5d6b72; --line:#d9dedb;
+  --accent:#0d6b78; --accent-ink:#ffffff; --mine:#1a8a45; --enemy:#c4510f; --free:#7b8588;
+  --good:#1d7a45; --warn:#a86a00; --heat:#e0a100; --route:#1f5fe0;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --roads:rgba(40,60,70,.20); --mapbg:#eef0ec;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101619; --card:#192226; --ink:#e6ecee; --mute:#94a3a9; --line:#2c393e;
+    --accent:#4fc0d0; --accent-ink:#06191d; --mine:#4cd47f; --enemy:#f08a4b; --free:#8d999d;
+    --good:#58c98a; --warn:#e2a93a; --heat:#f0b429; --route:#5ba6ff;
+    --roads:rgba(190,215,225,.16); --mapbg:#0c1214; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101619; --card:#192226; --ink:#e6ecee; --mute:#94a3a9; --line:#2c393e;
+  --accent:#4fc0d0; --accent-ink:#06191d; --mine:#4cd47f; --enemy:#f08a4b; --free:#8d999d;
+  --good:#58c98a; --warn:#e2a93a; --heat:#f0b429; --route:#5ba6ff;
+  --roads:rgba(190,215,225,.16); --mapbg:#0c1214; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+main{max-width:760px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+h1{font-size:21px;margin:0;font-weight:600;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:13px;margin:0 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+p{margin:0}
+.sub{color:var(--mute);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:420px){.grid2{grid-template-columns:1fr}}
+label{font-size:13px;color:var(--mute);display:block;margin-bottom:4px}
+select,input[type=number],button,input[type=file]{font:inherit;color:var(--ink)}
+select,input[type=number]{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);min-height:42px}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:30px}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:9px 12px;min-height:42px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;width:100%}
+button.chip{padding:6px 12px;min-height:34px;border-radius:999px;font-family:var(--font-mono);font-size:13px}
+button.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrow{display:grid;grid-template-columns:110px 1fr 28px;gap:8px;align-items:center;margin:2px 0}
+.wrow span:last-child{font-family:var(--font-mono);text-align:right;font-size:13px}
+.wrow .nm{font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
+.tile b{display:block;font-family:var(--font-mono);font-weight:500;font-size:19px;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--mute)}
+.mapwrap{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--mapbg);touch-action:none}
+#map{display:block;width:100%;height:58vh;min-height:340px;max-height:620px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:8px}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px;border:2px solid}
+.mapbtns{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
+.mapbtns button{min-height:36px;padding:4px 10px;background:color-mix(in srgb,var(--card) 90%,transparent)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:13.5px}
+th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--mute);font-size:12px}
+tr.sel td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+td.mono,.mono{font-family:var(--font-mono)}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line)}
+.pill.good{color:var(--good);border-color:var(--good)} .pill.warn{color:var(--warn);border-color:var(--warn)}
+.note{font-size:13px;color:var(--mute)}
+.note b{color:var(--ink);font-weight:500}
+.list{display:flex;flex-direction:column}
+.item{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.item .grow{flex:1;min-width:0}
+.item a.btn{display:inline-block;padding:8px 12px;border:1px solid var(--accent);color:var(--accent);border-radius:8px;text-decoration:none;font-weight:500;white-space:nowrap}
+.item.done{opacity:.5}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+details summary{cursor:pointer;font-weight:500;padding:4px 0}
+.err{color:var(--enemy)}
+.info{margin-top:8px;font-size:13px}
+.assume{display:grid;grid-template-columns:1fr 90px;gap:6px 10px;align-items:center;margin-top:8px}
+.warnbox{border-left:3px solid var(--warn);padding:6px 10px;background:color-mix(in srgb,var(--warn) 8%,transparent);border-radius:0 6px 6px 0;font-size:13px}
+input.in{flex:1;min-width:150px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;min-height:42px}
+button.pick{display:block;width:100%;text-align:left;margin-top:6px;font-weight:400;font-size:14px;min-height:38px;padding:8px 10px}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Wardrive Route Planner</h1>
+    <p class="sub" id="asof"></p>
+    <p class="note" style="margin-top:6px"><b>Private.</b> Sign-in required. The page shows where you drive, so do not share the address or password.</p>
+  </header>
+
+  <section class="card" aria-label="Route settings">
+    <h2>Route</h2>
+    <label for="saddr">Start address</label>
+    <div class="row"><input id="saddr" class="in" type="text" placeholder="Address, city or place" autocomplete="off"><button id="sgo" type="button">Search</button></div>
+    <div id="sres"></div>
+    <label for="daddr" style="margin-top:10px">Destination (optional)</label>
+    <div class="row"><input id="daddr" class="in" type="text" placeholder="Where are you headed?" autocomplete="off"><button id="dgo" type="button">Search</button><button id="dclr" type="button">Clear</button></div>
+    <div id="dres"></div>
+    <div id="snapinfo" class="note" style="margin-top:6px"></div>
+    <div id="dinfo" class="note" style="margin-top:6px"></div>
+    <div class="grid2" style="margin-top:12px">
+      <div><label for="region">Area</label><select id="region"></select></div>
+      <div><label for="start">Start</label><select id="start"></select></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button id="gps" type="button">Use my location</button><button id="refresh" type="button">Refresh data</button></div>
+    <div class="card" id="buildbox" style="display:none;margin-top:10px"></div>
+    <div class="grid2" style="margin-top:12px">
+      <div><label for="trip">Trip</label>
+        <select id="trip">
+          <option value="round">Round trip</option>
+          <option value="home">One way, end at Home</option>
+          <option value="office">One way, end at Office</option>
+          <option value="open">One way, end anywhere</option>
+          <option value="dest">One way, end at destination</option>
+        </select></div>
+    </div>
+    <div style="margin-top:12px">
+      <label for="budget">Drive time budget: <b class="mono" id="budgetv">60 min</b></label>
+      <input id="budget" type="range" min="15" max="600" step="5" value="60">
+      <div class="row" style="margin-top:6px" id="chips"></div>
+      <div class="row" style="margin-top:6px" id="chips2"></div>
+    </div>
+    <div class="row" style="margin-top:16px;justify-content:space-between"><h2 style="margin:0">What matters (0 to 10)</h2><button id="reset" type="button" style="min-height:34px;padding:4px 12px">Reset to defaults</button></div>
+    <div id="weights"></div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label for="speed">Real-world time factor</label><input id="speed" type="number" min="0.8" max="2" step="0.05" value="1.15"></div>
+      <div style="display:flex;align-items:flex-end"><button id="plan" class="primary" type="button">Plan route</button></div>
+    </div>
+    <p class="note" style="margin-top:8px" id="status"></p>
+  </section>
+
+  <section class="card" id="summary" aria-live="polite">
+    <h2>Estimated gain on this route</h2>
+    <div class="tiles" id="tiles"></div>
+    <p class="note" style="margin-top:8px">Estimates from other players' counts and your own coverage, not promises. See assumptions at the bottom.</p>
+  </section>
+
+  <section aria-label="Map">
+    <div class="mapwrap">
+      <canvas id="map"></canvas>
+      <div class="mapbtns"><button id="fit" type="button" aria-label="Fit route">Fit</button><button id="zin" type="button" aria-label="Zoom in">+</button><button id="zout" type="button" aria-label="Zoom out">-</button></div>
+    </div>
+    <div class="legend">
+      <span><i style="border-color:var(--mine)"></i>yours</span>
+      <span><i style="border-color:var(--enemy)"></i>held by others</span>
+      <span><i style="border-color:var(--free)"></i>unheld</span>
+      <span><i style="border-color:var(--heat);background:color-mix(in srgb,var(--heat) 55%,transparent)"></i>higher value for your weights</span>
+      <span><i style="border-color:var(--route);background:none;border-radius:50%"></i>route</span>
+    </div>
+    <div class="card info" id="cellinfo" style="display:none"></div>
+  </section>
+
+  <section class="card">
+    <h2>Gain versus driving time</h2>
+    <div class="tablewrap"><table id="gaintable"></table></div>
+    <p class="note" style="margin-top:8px" id="gainnote"></p>
+  </section>
+
+  <section class="card">
+    <h2>Best cells on this route</h2>
+    <div class="list" id="targets"></div>
+  </section>
+
+  <section class="card">
+    <h2>Navigation</h2>
+    <p class="note">Apple Maps follows its own fastest road between stops, so the stops below sit on the intended road and are close together. Tap each leg when you start it. If Apple Maps wanders, load the GPX in OsmAnd, which follows a track exactly.</p>
+    <div class="row" style="margin:10px 0">
+      <button id="gpxshare" type="button">Share to OsmAnd</button>
+      <button id="gpx" type="button">Download GPX</button>
+      <button id="gpxcopy" type="button">Copy GPX text</button>
+      <button id="legcopy" type="button">Copy stop list</button>
+    </div>
+    <p class="note" id="navmsg"></p>
+    <div class="list" id="legs"></div>
+  </section>
+
+  <section class="card">
+    <h2>Your WiGLE cell heat</h2>
+    <p class="note" id="heatstatus"></p>
+    <div style="margin:10px 0"><input id="heatfile" type="file" accept=".csv,text/csv"></div>
+    <p class="note">Upload <span class="mono">wigle_cell_heat.csv</span> here, or copy it into the <span class="mono">data</span> folder on the Pi. It is stored on the Pi and used on every device. Replace it every 60 days (30 to 90 works).</p>
+  </section>
+
+  <section class="card">
+    <h2>Recent WiGLE density</h2>
+    <p class="note" id="densstatus"></p>
+    <div style="margin:10px 0"><input id="densfile" type="file" accept=".csv,text/csv"></div>
+    <p class="note">Upload <span class="mono">wigle_density.csv</span> from <span class="mono">wigle_density.py</span> on your PC. It tells the planner how many WiFi networks WiGLE has seen recently in each cell, which is used to value cells nobody has recorded yet. Stored on the Pi. Without it, those cells are valued from nearby charted cells.</p>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Add an area ahead of time</summary>
+      <p class="note" style="margin-top:8px">Type a city or address. The Pi builds the road data for 40 km around it, including cells nobody has recorded yet (10 to 25 minutes) and keeps it. Opening the page in a new place does this automatically from your location.</p>
+      <div class="row" style="margin-top:8px"><input id="addq" type="text" placeholder="Tampa, FL" style="flex:1;min-width:160px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;min-height:42px"><button id="addbtn" type="button">Build area</button></div>
+      <p class="note" id="addmsg" style="margin-top:8px"></p>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Assumptions behind the estimates</summary>
+      <p class="note" style="margin-top:8px">One pass through a cell is expected to find about <b>pass fraction</b> of the APs the holder has that you do not have yet. The defaults were calibrated against one real drive's before and after warroom data, where dense cells gained 4 to 30 percent of the holder count. Tune these if reality differs.</p>
+      <div class="assume" id="assume"></div>
+      <p class="note" style="margin-top:10px" id="dcal"></p>
+      <p class="note" style="margin-top:10px">New BLE uses the 2.6 BLE per new WiFi seen in that same before and after data. XP counts 1 per new WiFi, 10 per capture, 2 per rescan, 0.2 per BLE. Whether the 10 replaces or adds to the 1 is unverified; this adds. Flip chance is the expected new WiFi divided by the gap to the holder, discounted for cells that flap between holders. Cells missing from your footprint are not shown.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString("en-US");
+const safe=(f,d)=>{try{return f()}catch(e){return d}};
+const store={get:k=>safe(()=>JSON.parse(localStorage.getItem(k)),null),set:(k,v)=>safe(()=>localStorage.setItem(k,JSON.stringify(v)),null)};
+
+
+/* ---------- data (one road pack at a time) ---------- */
+const I=0,J=1,ST=2,CNT=3,MY=4,GAP=5,FL=6,LA=7,LO=8,GG=9,NM=10;
+let COS=Math.cos(42.4*Math.PI/180);
+let REG=null,NODES=[],N=0,HOME=-1,OFFICE=-1,GANGS=[""],cellIdx=new Map();
+let E=[],NE=0,ea,eb,et,epts,ecrossId,ecrossFr,adj,roadPath=new Path2D(),dist,prevE,pairMemo=new Map();
+let V={},maxVal=1,scale={w:1,b:1,x:1},stamp,tf,epoch=0;
+const isCell=v=>NODES[v][ST]<3;
+const nodeName=v=>NODES[v][NM]||"Cell "+NODES[v][I]+"/"+NODES[v][J];
+const hav=(la1,lo1,la2,lo2)=>{const p=Math.PI/180,x=Math.sin((la2-la1)*p/2)**2+Math.cos(la1*p)*Math.cos(la2*p)*Math.sin((lo2-lo1)*p/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+
+function decode(s){const out=[];let i=0,la=0,lo=0;while(i<s.length){let r=0,sh=0,b;do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);la+=(r&1)?~(r>>1):(r>>1);r=0;sh=0;do{b=s.charCodeAt(i++)-63;r|=(b&31)<<sh;sh+=5}while(b>=32);lo+=(r&1)?~(r>>1):(r>>1);out.push([la/1e5,lo/1e5]);}return out}
+
+function setupRegion(pack){
+  REG=pack; COS=Math.cos(pack.lat*Math.PI/180); GANGS=pack.gangs;
+  NODES=pack.nodes.map((nd,v)=>{const a=pack.attrs[v];return [nd[0]===null?0:nd[0],nd[1]===null?0:nd[1],a[0],a[1],a[2],a[3],a[4],nd[2],nd[3],a[5],nd[4]||""]});
+  N=NODES.length; HOME=NODES.findIndex(n=>n[NM]==="Home"); OFFICE=NODES.findIndex(n=>n[NM]==="Office");
+  cellIdx=new Map(); for(let v=0;v<N;v++){const n=NODES[v]; if(n[ST]<3) cellIdx.set(n[I]+","+n[J],v);}
+  E=pack.edges; NE=E.length; ea=new Int16Array(NE); eb=new Int16Array(NE); et=new Float32Array(NE);
+  epts=new Array(NE); ecrossId=new Array(NE); ecrossFr=new Array(NE);
+  adj=Array.from({length:N},()=>[]); roadPath=new Path2D(); pairMemo=new Map();
+  dist=new Float32Array(N*N); prevE=new Int16Array(N*N);
+  V={pres:new Float32Array(N),nw:new Float32Array(N),nb:new Float32Array(N),xpx:new Float32Array(N),xp:new Float32Array(N),flip:new Float32Array(N),val:new Float32Array(N),src:new Float32Array(N)};
+  stamp=new Int32Array(N); tf=new Float32Array(N); epoch=0;
+  buildGraph(); allPairs();
+  routePath=null; routeCov=null; current=null; sel=null;
+}
+
+function buildGraph(){
+  for(let e=0;e<NE;e++){
+    const [a,b,t,d,poly]=E[e]; ea[e]=a; eb[e]=b; et[e]=t;
+    adj[a].push([b,e,t]); adj[b].push([a,e,t]);
+    const pts=decode(poly); epts[e]=pts;
+    // cells crossed, with how much of the cell the road passes through
+    const cnt=new Map();
+    const add=(la,lo)=>{const v=cellIdx.get(Math.floor(la/0.02)+","+Math.floor(lo/0.02)); if(v!==undefined) cnt.set(v,(cnt.get(v)||0)+1)};
+    for(let k=0;k<pts.length-1;k++){
+      const [la1,lo1]=pts[k],[la2,lo2]=pts[k+1];
+      const m=Math.hypot((la2-la1)*111.2,(lo2-lo1)*111.2*COS);
+      const steps=Math.max(1,Math.ceil(m/0.2));
+      for(let s=0;s<steps;s++){add(la1+(la2-la1)*s/steps,lo1+(lo2-lo1)*s/steps)}
+    }
+    const last=pts[pts.length-1]; add(last[0],last[1]);
+    const ids=[],frs=[]; for(const [v,c] of cnt){ids.push(v);frs.push(Math.min(1,c*0.2/1.4));}
+    ecrossId[e]=Int16Array.from(ids); ecrossFr[e]=Float32Array.from(frs);
+    roadPath.moveTo(pts[0][1]*COS,-pts[0][0]);
+    for(let k=1;k<pts.length;k++) roadPath.lineTo(pts[k][1]*COS,-pts[k][0]);
+  }
+}
+
+function dijkstra(s){
+  const base=s*N; dist.fill(Infinity,base,base+N); prevE.fill(-1,base,base+N); dist[base+s]=0;
+  const hk=[0],hv=[s];
+  const push=(k,v)=>{let i=hk.length;hk.push(k);hv.push(v);while(i>0){const p=(i-1)>>1;if(hk[p]<=k)break;hk[i]=hk[p];hv[i]=hv[p];i=p}hk[i]=k;hv[i]=v};
+  const pop=()=>{const rk=hk[0],rv=hv[0];const lk=hk.pop(),lv=hv.pop();const n=hk.length;if(n>0){let i=0;for(;;){let c=2*i+1;if(c>=n)break;if(c+1<n&&hk[c+1]<hk[c])c++;if(hk[c]>=lk)break;hk[i]=hk[c];hv[i]=hv[c];i=c}hk[i]=lk;hv[i]=lv}return [rk,rv]};
+  hk.length=0;hv.length=0;push(0,s);
+  while(hk.length){const [d,u]=pop(); if(d>dist[base+u]) continue;
+    for(const [v,e,t] of adj[u]){const nd=d+t; if(nd<dist[base+v]){dist[base+v]=nd;prevE[base+v]=e;push(nd,v)}}}
+}
+function allPairs(){for(let s=0;s<N;s++) dijkstra(s)}
+const other=(e,v)=>ea[e]===v?eb[e]:ea[e];
+function pathEdges(a,b){const out=[];let v=b;let guard=0;while(v!==a&&guard++<5000){const e=prevE[a*N+v];if(e<0)return null;out.push(e);v=other(e,v)}return out.reverse()}
+
+function coverPair(a,b){
+  const key=a*N+b; let r=pairMemo.get(key); if(r) return r;
+  const acc=new Map(); const pe=pathEdges(a,b)||[];
+  for(const e of pe){const ids=ecrossId[e],fr=ecrossFr[e];for(let k=0;k<ids.length;k++)acc.set(ids[k],Math.min(1,(acc.get(ids[k])||0)+fr[k]))}
+  const ids=[],frs=[]; for(const [v,f] of acc){ids.push(v);frs.push(f)}
+  r={ids:Int16Array.from(ids),fr:Float32Array.from(frs)}; pairMemo.set(key,r); return r;
+}
+/* ---------- settings ---------- */
+const WNAMES=[["pres","Cell presence",10],["wifi","New WiFi",4],["ble","New BLE",1],["xp","XP (captures, rescans)",2],["flip","Flips",1]];
+const AP=[["pass","Pass fraction",0.20,0.01],["capE","Capture rate, others' cells",0.30,0.01],["capM","Capture rate, your cells",0.10,0.01],["resc","Rescan rate of your APs",0.03,0.005],["ble","BLE per new WiFi",2.6,0.1],["cap","Max new WiFi per cell",2500,100],["unk","New WiFi guess, unvisited cell (last resort)",1.5,0.1],["dfac","WiGLE density factor (0 = auto fit)",0,0.001],["nfrac","Neighbor fallback fraction",0.5,0.05],["nkm","Neighbor radius, km",6,1]];
+const saved=store.get("rp_settings")||{};
+const S={start:saved.start??-1,startRegion:saved.startRegion||null,region:saved.region||null,trip:saved.trip||"round",budget:saved.budget||60,speed:saved.speed||1.15,w:Object.assign({},...WNAMES.map(x=>({[x[0]]:x[2]})),saved.w||{}),a:Object.assign({},...AP.map(x=>({[x[0]]:x[2]})),saved.a||{})};
+const persist=()=>store.set("rp_settings",S);
+
+const setStart=v=>{S.start=v;S.startRegion=REG?REG.id:null;persist()};
+
+
+/* ---------- heat (own WiGLE coverage, stored on the Pi) ---------- */
+let heat=new Map(), heatAt=null;
+function loadHeatRows(rows,at){heat=new Map();for(const r of rows){heat.set(r[0]+","+r[1],r)}heatAt=at;}
+function heatText(){
+  const el=$("heatstatus");
+  if(!heat.size){el.innerHTML="No heat file on the Pi yet. Estimates use only your warroom counts.";return}
+  const days=Math.floor((Date.now()-new Date(heatAt).getTime())/864e5);
+  el.innerHTML="Loaded <b>"+fmt(heat.size)+"</b> cells, file dated "+(days<=0?"today":days+" days ago")+(days>60?' <span class="pill warn">older than 60 days, replace it</span>':' <span class="pill good">current</span>');
+}
+
+/* ---------- recent WiGLE density (from wigle_density.py, stored on the Pi) ---------- */
+let dens=new Map(), densAt=null, dcal={n:0,f:0,lo:0,hi:0};
+function loadDensityRows(rows,at){dens=new Map();for(const r of rows){dens.set(r[0]+","+r[1],r[2])}densAt=at}
+function densText(){
+  const el=$("densstatus");
+  if(!dens.size){el.innerHTML="No density file on the Pi yet. Unvisited cells are valued from nearby charted cells.";return}
+  const days=Math.floor((Date.now()-new Date(densAt).getTime())/864e5);
+  el.innerHTML="Loaded <b>"+fmt(dens.size)+"</b> cells, file dated "+(days<=0?"today":days+" days ago")+(days>120?' <span class="pill warn">older than 120 days</span>':' <span class="pill good">current</span>');
+}
+// Fit: holder count in warroom is roughly factor x recent WiGLE networks. Median of the ratio in log space,
+// using charted cells (held by someone, count above 0) that also have a density value.
+function calibrateDensity(){
+  const rs=[];
+  for(let v=0;v<N;v++){const n=NODES[v]; if(n[ST]>=2||n[CNT]<1)continue; const d=dens.get(n[I]+","+n[J]); if(d===undefined||d<1)continue; rs.push(Math.log(n[CNT]/d))}
+  dcal={n:rs.length,f:0,lo:0,hi:0};
+  if(rs.length<10)return;
+  rs.sort((a,b)=>a-b);
+  const q=p=>rs[Math.min(rs.length-1,Math.max(0,Math.round(p*(rs.length-1))))];
+  dcal.f=Math.exp(q(0.5)); dcal.lo=Math.exp(q(0.25)); dcal.hi=Math.exp(q(0.75));
+}
+const sig=x=>x>=1?x.toFixed(1):x.toPrecision(2);
+function densityNote(srcN,fac){
+  const el=$("dcal"); if(!el)return;
+  let t=srcN[1]+srcN[2]+srcN[3]+srcN[4]?"Unvisited cells in this area: <b>"+srcN[1]+"</b> valued from WiGLE density, <b>"+srcN[2]+"</b> from nearby charted cells, <b>"+srcN[3]+"</b> from charted cells farther away, <b>"+srcN[4]+"</b> flat guess. ":"No unvisited cells in this area. ";
+  if(!dens.size) t+="No density file loaded.";
+  else if(S.a.dfac>0) t+="Density factor set by you: <b>"+sig(S.a.dfac)+"</b> expected holder count per recent WiGLE network.";
+  else if(dcal.n<10) t+="Density file loaded, but only "+dcal.n+" charted cells here have both values, too few to calibrate, so density is not used in this area. Enter a factor by hand to force it.";
+  else t+="Density factor (auto): <b>"+sig(fac)+"</b> expected holder count per recent WiGLE network, fitted on "+dcal.n+" charted cells (the middle half of them fall between "+sig(dcal.lo)+" and "+sig(dcal.hi)+").";
+  t+=" These are estimates. WiGLE counts follow where other people drive, and warroom counts are on a different scale.";
+  el.innerHTML=t;
+}
+
+/* ---------- cell values ---------- */
+const p90=a=>{const b=Array.from(a).filter(x=>x>0).sort((x,y)=>x-y);return b.length?b[Math.floor(b.length*0.9)]:1};
+function computeValues(){
+  const A=S.a;
+  calibrateDensity();
+  const fac=A.dfac>0?A.dfac:dcal.f;
+  const chart=new Map();
+  for(let v=0;v<N;v++){const n=NODES[v]; if(n[ST]<2&&n[CNT]>0)chart.set(n[I]+","+n[J],n[CNT])}
+  const nbMean=(i,j,km)=>{
+    const R=Math.ceil(km/2.2); let s=0,c=0;
+    for(let di=-R;di<=R;di++)for(let dj=-R;dj<=R;dj++){
+      if(!di&&!dj)continue;
+      if(Math.hypot(di*2.22,dj*2.22*COS)>km)continue;
+      const x=chart.get((i+di)+","+(j+dj)); if(x!==undefined){s+=x;c++}
+    }
+    return c?s/c:0;
+  };
+  const srcN=[0,0,0,0,0];
+  for(let v=0;v<N;v++){
+    const n=NODES[v]; if(n[ST]>=3){for(const k in V)V[k][v]=0;continue}
+    const st=n[ST],cnt=n[CNT],my=n[MY];
+    const h=heat.get(n[I]+","+n[J]); const cov=Math.max(my,h?h[2]:0);
+    let nw;
+    if(st===2||cnt<=0){
+      // unvisited cell: expected holder count from density, else from neighbors, else the flat guess
+      let est=-1,src=4; const d=fac>0?dens.get(n[I]+","+n[J]):undefined;
+      if(d!==undefined){est=fac*d;src=1}
+      else{
+        let m=nbMean(n[I],n[J],A.nkm);
+        if(m>0){est=A.nfrac*m;src=2}
+        else{m=nbMean(n[I],n[J],A.nkm*3); if(m>0){est=A.nfrac*0.5*m;src=3}}
+      }
+      nw=est>=0?Math.min(A.cap,Math.max(0.1,A.pass*est)):A.unk; V.src[v]=src; srcN[src]++;
+    } else {const r=Math.min(1,cov/cnt); nw=Math.min(A.cap,A.pass*cnt*Math.max(1-r,0.05)); V.src[v]=0;}
+    const nb=A.ble*nw;
+    const capRate=st===1?A.capE:st===0?A.capM:0.05;
+    const caps=capRate*nw;
+    const resc=(my>0||cov>0)?Math.min(800,A.resc*cov):0;
+    const xpx=10*caps+2*resc;
+    V.nw[v]=nw;V.nb[v]=nb;V.xpx[v]=xpx;V.xp[v]=nw+0.2*nb+xpx;
+    V.pres[v]=my===0?1-Math.exp(-2*nw):0;
+    const stab=1-Math.min(0.6,0.2*n[FL]);
+    V.flip[v]=(st===1&&n[GAP]>0)?Math.min(1,nw/n[GAP])*stab:0;
+  }
+  scale.w=p90(V.nw)||1; scale.b=p90(V.nb)||1; scale.x=p90(V.xpx)||1;
+  densityNote(srcN,fac);
+  recomputeVal();
+}
+function recomputeVal(){
+  const w=S.w; maxVal=1e-6;
+  for(let v=0;v<N;v++){
+    if(!isCell(v)){V.val[v]=0;continue}
+    const c=x=>Math.min(1.2,x);
+    const x=w.pres*V.pres[v]+w.wifi*c(V.nw[v]/scale.w)+w.ble*c(V.nb[v]/scale.b)+w.xp*c(V.xpx[v]/scale.x)+w.flip*V.flip[v];
+    V.val[v]=x; if(x>maxVal)maxVal=x;
+  }
+}
+
+/* ---------- optimizer ---------- */
+function endFor(start){const t=S.trip; if(t==="round")return start; if(t==="home")return HOME; if(t==="office")return OFFICE; if(t==="dest")return destNode; return -1}
+function optimize(start,B){
+  const fac=S.speed/60, leg=(a,b)=>dist[a*N+b]*fac;
+  const end=endFor(start), open=end<0;
+  let seq=open?[start]:[start,end];
+  const cost=s=>{let c=0;for(let k=0;k<s.length-1;k++)c+=leg(s[k],s[k+1]);return c};
+  if(cost(seq)>B) return {seq,infeasible:true};
+  const base=cost(seq); const big=N>1000;
+  let cands=[]; for(let v=0;v<N;v++) if(isCell(v)&&V.val[v]>0&&isFinite(dist[start*N+v])){
+    if(big){const det=(dist[start*N+v]+(end>=0?dist[v*N+end]-dist[start*N+end]:dist[v*N+start]))*fac; if(!isFinite(det)||det>B-base)continue; cands.push([v,V.val[v]/(det+3)])} else cands.push(v)}
+  if(big){cands.sort((x,y)=>y[1]-x[1]); cands=cands.slice(0,600).map(x=>x[0])}
+  const covFrac=new Float32Array(N);
+  const rebuild=()=>{covFrac.fill(0);for(let k=0;k<seq.length-1;k++){const c=coverPair(seq[k],seq[k+1]);for(let q=0;q<c.ids.length;q++)covFrac[c.ids[q]]=Math.min(1,covFrac[c.ids[q]]+c.fr[q])} if(isCell(seq[0]))covFrac[seq[0]]=Math.max(covFrac[seq[0]],0.5)};
+  const insertLoop=()=>{
+    for(let iter=0;iter<(big?300:200);iter++){
+      rebuild(); const total=cost(seq); let best=null,bestR=0;
+      for(const v of cands){
+        if(covFrac[v]>0.85) continue;
+        for(let k=0;k<seq.length;k++){
+          const a=seq[k], b=k+1<seq.length?seq[k+1]:-1; if(b<0&&!open) continue;
+          const dav=leg(a,v); if(!isFinite(dav)) continue;
+          const extra=b<0?dav:dav+leg(v,b)-leg(a,b); if(total+extra>B) continue;
+          epoch++; let gain=0;
+          const apply=c=>{for(let q=0;q<c.ids.length;q++){const id=c.ids[q];const cur=stamp[id]===epoch?tf[id]:covFrac[id];const nx=Math.min(1,cur+c.fr[q]);gain+=V.val[id]*(nx-cur);stamp[id]=epoch;tf[id]=nx}};
+          apply(coverPair(a,v)); if(b>=0) apply(coverPair(v,b));
+          if(gain<=0) continue;
+          const r=gain/Math.max(extra,0.4);
+          if(r>bestR){bestR=r;best={v,k}}
+        }
+      }
+      if(!best) break; seq.splice(best.k+1,0,best.v);
+    }
+  };
+  const twoOpt=()=>{
+    let improved=true,guard=0;
+    while(improved&&guard++<30){improved=false;
+      const L=seq.length;
+      for(let i=1;i<L-1;i++){for(let j=i+1;j<(open?L:L-1);j++){
+        const a=seq[i-1],b=seq[i],c=seq[j],d=j+1<L?seq[j+1]:-1;
+        const before=leg(a,b)+(d>=0?leg(c,d):0), after=leg(a,c)+(d>=0?leg(b,d):0);
+        if(after<before-0.05){seq=seq.slice(0,i).concat(seq.slice(i,j+1).reverse(),seq.slice(j+1));improved=true}
+      }}
+    }
+  };
+  insertLoop(); for(let r=0;r<2;r++){twoOpt(); insertLoop();}
+  return {seq};
+}
+function evaluate(seq){
+  const fac=S.speed/60; let mins=0; const covFrac=new Float32Array(N); const edges=[];
+  for(let k=0;k<seq.length-1;k++){mins+=dist[seq[k]*N+seq[k+1]]*fac; const pe=pathEdges(seq[k],seq[k+1])||[]; let cur=seq[k];
+    for(const e of pe){edges.push([e,cur]);cur=other(e,cur)}
+    const c=coverPair(seq[k],seq[k+1]);for(let q=0;q<c.ids.length;q++)covFrac[c.ids[q]]=Math.min(1,covFrac[c.ids[q]]+c.fr[q])}
+  let pres=0,nw=0,nb=0,xp=0,flip=0,score=0,cells=0;
+  for(let v=0;v<N;v++){const f=covFrac[v]; if(f<=0||!isCell(v)) continue; cells++;
+    pres+=f*V.pres[v];nw+=f*V.nw[v];nb+=f*V.nb[v];xp+=f*V.xp[v];flip+=f*V.flip[v];score+=f*V.val[v]}
+  return {seq,edges,covFrac,mins,pres,nw,nb,xp,flip,score,cells};
+}
+
+/* ---------- map ---------- */
+const cv=$("map"),ctx=cv.getContext("2d");
+let view={x:-71.2*COS,y:-42.4,k:3000}, dpr=1, cw=300, ch=300;
+let routePath=null, routeCov=null, current=null, sel=null;
+function resize(){dpr=window.devicePixelRatio||1;const r=cv.getBoundingClientRect();cw=r.width;ch=r.height;cv.width=Math.round(cw*dpr);cv.height=Math.round(ch*dpr);draw()}
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function draw(){
+  const C={mine:cssv("--mine"),enemy:cssv("--enemy"),free:cssv("--free"),heat:cssv("--heat"),route:cssv("--route"),roads:cssv("--roads"),bg:cssv("--mapbg"),ink:cssv("--ink")};
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle=C.bg;ctx.fillRect(0,0,cv.width,cv.height);
+  const k=view.k*dpr; ctx.setTransform(k,0,0,k,cv.width/2-view.x*k,cv.height/2-view.y*k);
+  const px=1/(view.k); // one CSS pixel in world units
+  ctx.lineWidth=1.2*px*1.0; ctx.strokeStyle=C.roads; ctx.stroke(roadPath);
+  const w=0.02*COS,h=0.02;
+  for(let v=0;v<N;v++){const n=NODES[v]; if(n[ST]>=3)continue; const x=n[J]*0.02*COS,y=-(n[I]+1)*0.02;
+    const col=n[ST]===0?C.mine:n[ST]===1?C.enemy:C.free;
+    ctx.globalAlpha=n[ST]===0?0.12:0.04; ctx.fillStyle=col; ctx.fillRect(x,y,w,h);
+    const q=V.val[v]/maxVal; if(q>0.02){ctx.globalAlpha=Math.min(0.62,0.08+0.6*q);ctx.fillStyle=C.heat;ctx.fillRect(x,y,w,h)}
+    ctx.globalAlpha=0.9; ctx.strokeStyle=col; ctx.lineWidth=(routeCov&&routeCov[v]>0?2.2:0.9)*px; ctx.strokeRect(x,y,w,h);
+  }
+  ctx.globalAlpha=1;
+  if(routePath){ctx.lineJoin="round";ctx.lineCap="round";ctx.strokeStyle=cssv("--bg");ctx.lineWidth=7*px;ctx.stroke(routePath);ctx.strokeStyle=C.route;ctx.lineWidth=4*px;ctx.stroke(routePath)}
+  if(sel!==null){const n=NODES[sel];ctx.strokeStyle=C.ink;ctx.lineWidth=2.5*px;ctx.setLineDash([6*px,4*px]);ctx.strokeRect(n[J]*0.02*COS,-(n[I]+1)*0.02,w,h);ctx.setLineDash([])}
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const sp=v=>[(NODES[v][LO]*COS-view.x)*view.k+cw/2,(-NODES[v][LA]-view.y)*view.k+ch/2];
+  const mark=(v,txt,fill)=>{const [x,y]=sp(v);ctx.beginPath();ctx.arc(x,y,9,0,7);ctx.fillStyle=fill;ctx.fill();ctx.lineWidth=2;ctx.strokeStyle=cssv("--bg");ctx.stroke();ctx.fillStyle=cssv("--accent-ink");ctx.font="600 11px "+cssv("--font-body");ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(txt,x,y+.5)};
+  const s=S.start; if(s>=0&&s<N){mark(s,"S",C.route); if(current&&current.seq.length>1){const e=current.seq[current.seq.length-1]; if(e!==s) mark(e,"E",C.ink)}}
+  if(gps){const x=(gps.lo*COS-view.x)*view.k+cw/2,y=(-gps.la-view.y)*view.k+ch/2;ctx.beginPath();ctx.arc(x,y,6,0,7);ctx.fillStyle="#2f7bf0";ctx.fill();ctx.lineWidth=2;ctx.strokeStyle="#fff";ctx.stroke()}
+}
+function fitTo(lat0,lat1,lon0,lon1){
+  const wx=(lon1-lon0)*COS,wy=lat1-lat0; const k=Math.min(cw/(wx*1.15||1),ch/(wy*1.15||1));
+  view.k=Math.max(200,Math.min(60000,k)); view.x=(lon0+lon1)/2*COS; view.y=-(lat0+lat1)/2; draw();
+}
+function fitRoute(){
+  const s=new Set(current?current.seq:[S.start]); let la0=99,la1=-99,lo0=999,lo1=-999;
+  const upd=(la,lo)=>{la0=Math.min(la0,la);la1=Math.max(la1,la);lo0=Math.min(lo0,lo);lo1=Math.max(lo1,lo)};
+  if(current) for(const [e] of current.edges) for(const p of epts[e]) upd(p[0],p[1]);
+  for(const v of s) upd(NODES[v][LA],NODES[v][LO]);
+  fitTo(la0-0.01,la1+0.01,lo0-0.01,lo1+0.01);
+}
+// gestures
+const ptrs=new Map(); let moved=0, lastPinch=0;
+cv.addEventListener("pointerdown",e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);moved=0;if(ptrs.size===2){const [a,b]=[...ptrs.values()];lastPinch=Math.hypot(a[0]-b[0],a[1]-b[1])}});
+cv.addEventListener("pointermove",e=>{
+  if(!ptrs.has(e.pointerId))return; const old=ptrs.get(e.pointerId); const nx=[e.clientX,e.clientY];
+  if(ptrs.size===1){view.x-=(nx[0]-old[0])/view.k;view.y-=(nx[1]-old[1])/view.k;moved+=Math.abs(nx[0]-old[0])+Math.abs(nx[1]-old[1]);ptrs.set(e.pointerId,nx);draw()}
+  else{ptrs.set(e.pointerId,nx);const [a,b]=[...ptrs.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(lastPinch>0)zoomAt((a[0]+b[0])/2,(a[1]+b[1])/2,d/lastPinch);lastPinch=d;moved+=10}
+});
+const endPtr=e=>{if(ptrs.size===1&&moved<8&&e.type==="pointerup"){const r=cv.getBoundingClientRect();tap(e.clientX-r.left,e.clientY-r.top)}ptrs.delete(e.pointerId);lastPinch=0};
+cv.addEventListener("pointerup",endPtr);cv.addEventListener("pointercancel",endPtr);
+function zoomAt(cx,cy,f){const r=cv.getBoundingClientRect();const mx=view.x+(cx-r.left-cw/2)/view.k,my=view.y+(cy-r.top-ch/2)/view.k;view.k=Math.max(200,Math.min(60000,view.k*f));view.x=mx-(cx-r.left-cw/2)/view.k;view.y=my-(cy-r.top-ch/2)/view.k;draw()}
+cv.addEventListener("wheel",e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,e.deltaY<0?1.2:1/1.2)},{passive:false});
+$("zin").onclick=()=>{view.k=Math.min(60000,view.k*1.5);draw()};$("zout").onclick=()=>{view.k=Math.max(200,view.k/1.5);draw()};$("fit").onclick=fitRoute;
+function tap(px,py){
+  const lo=(view.x+(px-cw/2)/view.k)/COS, la=-(view.y+(py-ch/2)/view.k);
+  const v=cellIdx.get(Math.floor(la/0.02)+","+Math.floor(lo/0.02)); sel=v===undefined?null:v; draw(); showCell(v);
+}
+const stName=["Yours","Held by others","Unheld"];
+function showCell(v){
+  const el=$("cellinfo"); if(v===undefined){el.style.display="none";return}
+  const n=NODES[v]; const h=heat.get(n[I]+","+n[J]);
+  el.style.display="block";
+  el.innerHTML="<b>"+nodeName(v)+"</b> <span class='pill'>"+stName[n[ST]]+"</span> <span class='sub mono'>"+(n[I]+.5)*.02+", "+(n[J]+.5)*.02+"</span>"+
+   "<div class='note' style='margin-top:6px'>"+(n[ST]===1?"Holder "+GANGS[n[GG]]+": "+fmt(n[CNT])+" APs. Yours: "+fmt(n[MY])+". Gap to lead: "+fmt(n[GAP])+".":n[ST]===0?"Your gang count "+fmt(n[CNT])+", your APs "+fmt(n[MY])+".":"Nobody holds it. Your APs: "+fmt(n[MY])+".")+
+   (h?" WiGLE nets: "+fmt(h[2])+" WiFi, "+fmt(h[3])+" BLE.":"")+(n[FL]>0?" Changed holder "+n[FL]+" times in the last 24 hours.":"")+"</div>"+
+   "<div class='note'>Per pass, est.: <b>"+fmt(V.nw[v])+"</b> new WiFi, <b>"+fmt(V.nb[v])+"</b> BLE, <b>"+fmt(V.xp[v])+"</b> XP, "+(V.pres[v]>0?"<b>"+Math.round(V.pres[v]*100)+"%</b> chance of new presence, ":"")+(n[ST]===1?"<b>"+Math.round(V.flip[v]*100)+"%</b> flip chance.":"")+"</div>"+
+   ((n[ST]===2||n[CNT]<=0)?"<div class='note'>Unvisited cell, so this is an estimate "+["","from recent WiGLE density ("+fmt(dens.get(n[I]+","+n[J])||0)+" networks)","from nearby charted cells","from charted cells farther away","from the flat guess"][V.src[v]]+".</div>":"")+
+   "<div class='row' style='margin-top:8px'><button type='button' id='setstart'>Start route here</button></div>";
+  $("setstart").onclick=()=>{setStart(v);refreshStartSelect();plan()};
+}
+
+
+/* ---------- UI ---------- */
+function refreshStartSelect(){
+  const s=$("start"); s.innerHTML="";
+  const add=(v,t)=>{const o=document.createElement("option");o.value=v;o.textContent=t;s.appendChild(o)};
+  if(HOME>=0) add(HOME,"Home"); if(OFFICE>=0) add(OFFICE,"Office");
+  if(gpsNode>=0&&gpsNode!==HOME&&gpsNode!==OFFICE) add(gpsNode,"My location");
+  if(S.start>=0&&S.start<N&&![HOME,OFFICE,gpsNode].includes(S.start)) add(S.start,"Map cell "+NODES[S.start][I]+"/"+NODES[S.start][J]);
+  if(S.start>=0) s.value=S.start;
+}
+function syncTrip(){
+  const t=$("trip"); t.querySelector("option[value=home]").disabled=HOME<0; t.querySelector("option[value=office]").disabled=OFFICE<0; t.querySelector("option[value=dest]").disabled=destNode<0;
+  if((S.trip==="home"&&HOME<0)||(S.trip==="office"&&OFFICE<0)||(S.trip==="dest"&&destNode<0)) S.trip="round"; t.value=S.trip;
+}
+function fillRegionSelect(){
+  const s=$("region"); s.innerHTML=""; for(const r of REGIONS){const o=document.createElement("option");o.value=r.id;const bt=r.built?new Date(r.built):null,age=bt?Math.floor((Date.now()-bt)/864e5):-1;o.textContent=r.name+(r.kind==="corridor"?" (route)":"")+(bt?" - built "+bt.toLocaleDateString(undefined,{month:"short",day:"numeric"})+(age>=90?" - old, consider rebuilding":""):"");s.appendChild(o)} if(REG) s.value=REG.id;
+}
+function buildControls(){
+  const w=$("weights"); w.innerHTML="";
+  for(const [k,nm] of WNAMES){const r=document.createElement("div");r.className="wrow";
+    r.innerHTML="<span class='nm'>"+nm+"</span><input type='range' min='0' max='10' step='1' id='w_"+k+"' value='"+S.w[k]+"' aria-label='"+nm+"'><span id='wv_"+k+"'>"+S.w[k]+"</span>";w.appendChild(r);
+    r.querySelector("input").oninput=e=>{S.w[k]=+e.target.value;$("wv_"+k).textContent=S.w[k];recomputeVal();draw();persist()}}
+  const a=$("assume"); a.innerHTML="";
+  for(const [k,nm,def,step] of AP){const l=document.createElement("label");l.setAttribute("for","a_"+k);l.style.margin=0;l.textContent=nm;const i=document.createElement("input");i.type="number";i.id="a_"+k;i.step=step;i.value=S.a[k];
+    i.onchange=()=>{S.a[k]=+i.value;computeValues();draw();persist()};a.appendChild(l);a.appendChild(i)}
+  const ch=$("chips"); ch.innerHTML="";
+  for(const m of [30,60,90,120]){const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=m+" min";b.setAttribute("aria-pressed",S.budget===m);b.onclick=()=>{S.budget=m;$("budget").value=m;syncBudget();persist()};ch.appendChild(b)}
+  $("budget").value=S.budget; $("trip").value=S.trip; $("speed").value=S.speed; syncBudget(); 
+  $("start").onchange=e=>{setStart(+e.target.value);plan()};
+  $("region").onchange=async e=>{try{await loadRegion(e.target.value);plan()}catch(err){$("status").innerHTML="<span class='err'>"+err.message+"</span>"}};
+  $("trip").onchange=e=>{S.trip=e.target.value;persist();plan()};
+  $("budget").oninput=e=>{S.budget=+e.target.value;syncBudget();persist()};
+  $("budget").onchange=()=>plan();
+  $("speed").onchange=e=>{S.speed=Math.max(0.8,Math.min(2,+e.target.value||1.15));persist();plan()};
+  $("plan").onclick=plan;
+  $("reset").onclick=()=>{S.w=Object.assign({},...WNAMES.map(x=>({[x[0]]:x[2]})));S.a=Object.assign({},...AP.map(x=>({[x[0]]:x[2]})));S.speed=1.15;persist();buildControls();computeValues();draw();plan()};
+}
+function syncBudget(){$("budgetv").textContent=S.budget+" min";[...$("chips").children].forEach(b=>b.setAttribute("aria-pressed",String(parseInt(b.textContent)===S.budget)))}
+$("heatfile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{await api("/api/heat",{method:"POST",headers:{"Content-Type":"text/csv"},body:await f.text()}); await loadHeat(); computeValues(); draw(); plan()}
+  catch(err){$("heatstatus").innerHTML="<span class='err'>"+err.message+"</span>"}
+};
+
+$("densfile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{await api("/api/density",{method:"POST",headers:{"Content-Type":"text/csv"},body:await f.text()}); await loadDensity(); computeValues(); draw(); plan()}
+  catch(err){$("densstatus").innerHTML="<span class='err'>"+err.message+"</span>"}
+};
+
+/* ---------- planning ---------- */
+let planning=false;
+const tick=()=>new Promise(r=>setTimeout(r,0));
+async function plan(){
+  if(planning||N===0||S.start<0||S.start>=N) return;
+  if(S.trip==="dest"&&destNode<0){$("status").innerHTML="<span class='err'>Pick a destination that is inside this area, or build a route to it.</span>";return}
+  planning=true; $("plan").disabled=true;
+  try{
+    const start=S.start, budgets=N>1000?[S.budget]:[...new Set([30,60,90,120,S.budget])].sort((a,b)=>a-b);
+    const results=new Map();
+    $("status").textContent="Planning "+S.budget+" minutes...";await tick();
+    const main=optimize(start,S.budget);
+    if(main.infeasible){$("status").innerHTML="<span class='err'>The trip back to the end point alone takes longer than the budget. Raise the budget.</span>";return}
+    current=evaluate(main.seq); results.set(S.budget,current);
+    for(const B of budgets){ if(results.has(B))continue; $("status").textContent="Comparing "+B+" minutes...";await tick();
+      const r=optimize(start,B); results.set(B,r.infeasible?null:evaluate(r.seq)) }
+    renderAll(results,budgets);
+    $("status").textContent="Planned "+current.mins.toFixed(0)+" min of driving, "+current.cells+" cells touched.";
+  }catch(e){console.error(e);$("status").innerHTML="<span class='err'>Planning failed: "+e.message+"</span>"}
+  finally{planning=false;$("plan").disabled=false}
+}
+function buildRoutePath(){
+  routePath=new Path2D(); routeCov=current.covFrac; let first=true;
+  for(const [e,from] of current.edges){const pts=epts[e]; const fwd=ea[e]===from; const arr=fwd?pts:pts.slice().reverse();
+    for(let k=0;k<arr.length;k++){const x=arr[k][1]*COS,y=-arr[k][0]; if(first&&k===0){routePath.moveTo(x,y);first=false} else routePath.lineTo(x,y)}}
+}
+function renderAll(results,budgets){
+  buildRoutePath(); fitRoute(); renderTiles(); renderTable(results,budgets); renderTargets(); renderLegs();
+}
+function renderTiles(){
+  const c=current, t=[[fmt(c.mins),"min driving"],[fmt(c.pres),"new cells (presence)"],[fmt(c.nw),"new WiFi"],[fmt(c.nb),"new BLE"],[fmt(c.xp),"XP"],[c.flip.toFixed(1),"cells flipped"]];
+  $("tiles").innerHTML=t.map(x=>"<div class='tile'><b>"+x[0]+"</b><span>"+x[1]+"</span></div>").join("");
+}
+function renderTable(results,budgets){
+  let html="<tr><th>Budget</th><th>Drive</th><th>New cells</th><th>WiFi</th><th>BLE</th><th>XP</th><th>Flips</th><th>Score/min</th><th>Extra score/min</th></tr>";
+  let prev=null,firstMarg=null,note="";
+  const rows=[];
+  for(const B of budgets){const r=results.get(B); if(!r)continue; let marg=null;
+    if(prev){const dm=r.mins-prev.mins; marg=dm>1?(r.score-prev.score)/dm:0} else marg=r.mins>0?r.score/r.mins:0;
+    if(firstMarg===null&&marg>0) firstMarg=marg;
+    rows.push([B,r,marg]); prev=r}
+  let dropAt=null;
+  for(const [B,r,marg] of rows){const low=firstMarg&&marg<0.5*firstMarg&&B>rows[0][0]; if(low&&dropAt===null)dropAt=B;
+    html+="<tr"+(B===S.budget?" class='sel'":"")+"><td class='mono'>"+B+" min</td><td>"+r.mins.toFixed(0)+"</td><td>"+fmt(r.pres)+"</td><td>"+fmt(r.nw)+"</td><td>"+fmt(r.nb)+"</td><td>"+fmt(r.xp)+"</td><td>"+r.flip.toFixed(1)+"</td><td>"+(r.score/Math.max(r.mins,1)).toFixed(1)+"</td><td>"+marg.toFixed(1)+(low?" <span class='pill warn'>low</span>":"")+"</td></tr>"}
+  $("gaintable").innerHTML=html;
+  $("gainnote").textContent=dropAt?"Extra driving up to "+rows.filter(x=>x[0]<dropAt).slice(-1)[0][0]+" minutes pays off well. From "+dropAt+" minutes each extra minute adds less than half of what the first stretch did.":"No sharp drop-off in this range. Score is your weights applied to the estimated gains. \"Extra score/min\" is what the added minutes buy over the row above.";
+}
+function whyTags(v){const n=NODES[v],t=[];
+  if(V.pres[v]>0.5)t.push("new presence"); if(V.nw[v]/scale.w>1.2)t.push("many new WiFi"); if(V.xpx[v]/scale.x>1.2)t.push("XP rich"); if(V.flip[v]>0.3)t.push("flip "+Math.round(V.flip[v]*100)+"%"); if(n[FL]>=3)t.push("flaps");
+  return t.join(", ")||"on the way"}
+function renderTargets(){
+  const c=current, arr=[];
+  for(let v=0;v<N;v++){if(c.covFrac[v]>0.3&&isCell(v)) arr.push([v,V.val[v]*c.covFrac[v]])}
+  arr.sort((a,b)=>b[1]-a[1]);
+  $("targets").innerHTML=arr.slice(0,10).map(([v,s])=>{const n=NODES[v];const col=n[ST]===0?"--mine":n[ST]===1?"--enemy":"--free";
+    return "<div class='item'><span class='dot' style='background:var("+col+")'></span><div class='grow'><b class='mono'>"+n[I]+"/"+n[J]+"</b> <span class='sub'>"+stName[n[ST]].toLowerCase()+(n[ST]===1?", "+fmt(n[CNT])+" vs your "+fmt(n[MY]):"")+"</span><div class='note'>"+whyTags(v)+"</div></div><span class='mono'>"+s.toFixed(1)+"</span></div>"}).join("")||"<p class='note'>No cells with value for these weights.</p>";
+}
+
+/* ---------- navigation outputs ---------- */
+let legs=[], gpxText="";
+function renderLegs(){
+  // node chain along the route
+  const chain=[current.seq[0]]; const times=[0]; let acc=0; let cur=current.seq[0];
+  for(const [e,from] of current.edges){const to=other(e,from);acc+=et[e]*S.speed/60;chain.push(to);times.push(acc)}
+  const target=7; legs=[]; let lastIdx=0;
+  for(let k=1;k<chain.length;k++){
+    const last=k===chain.length-1;
+    if(times[k]-times[lastIdx]>=target||last){ if(chain[k]===chain[lastIdx]&&!last)continue;
+      legs.push({to:chain[k],mins:times[k]-times[lastIdx],cum:times[k]}); lastIdx=k }
+  }
+  // drop zero legs
+  legs=legs.filter((l,i)=>l.mins>0.2||i===legs.length-1);
+  $("legs").innerHTML=legs.map((l,i)=>{const n=NODES[l.to];const href="https://maps.apple.com/?daddr="+n[LA].toFixed(5)+","+n[LO].toFixed(5)+"&dirflg=d";
+    return "<div class='item' id='leg"+i+"'><div class='grow'><b>Leg "+(i+1)+"</b> <span class='sub'>"+l.mins.toFixed(0)+" min, "+l.cum.toFixed(0)+" min in</span><div class='note mono'>"+n[LA].toFixed(5)+", "+n[LO].toFixed(5)+" ("+nodeName(l.to)+")</div></div><a class='btn' target='_blank' rel='noopener' href='"+href+"' data-leg='"+i+"'>Apple Maps</a></div>"}).join("");
+  $("legs").querySelectorAll("a.btn").forEach(a=>a.addEventListener("click",()=>{$("leg"+a.dataset.leg).classList.add("done")}));
+  // GPX
+  let g='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Wardrive Route Planner" xmlns="http://www.topografix.com/GPX/1/1">\n';
+  legs.forEach((l,i)=>{const n=NODES[l.to];g+='<wpt lat="'+n[LA].toFixed(5)+'" lon="'+n[LO].toFixed(5)+'"><name>Stop '+(i+1)+'</name></wpt>\n'});
+  g+='<trk><name>Wardrive '+S.budget+' min</name><trkseg>\n';
+  for(const [e,from] of current.edges){const pts=epts[e];const arr=ea[e]===from?pts:pts.slice().reverse();for(const p of arr)g+='<trkpt lat="'+p[0].toFixed(5)+'" lon="'+p[1].toFixed(5)+'"/>\n'}
+  g+='</trkseg></trk></gpx>\n'; gpxText=g;
+}
+
+const gpxName=()=>"wardrive_"+(REG?REG.id:"route")+"_"+S.budget+"min.gpx";
+$("gpxcopy").onclick=async()=>{try{await navigator.clipboard.writeText(gpxText);$("navmsg").textContent="GPX text copied."}catch(e){$("navmsg").textContent="Copy was blocked here. Use Download GPX."}};
+$("legcopy").onclick=async()=>{const t=legs.map((l,i)=>"Stop "+(i+1)+": "+NODES[l.to][LA].toFixed(5)+","+NODES[l.to][LO].toFixed(5)).join("\n");try{await navigator.clipboard.writeText(t);$("navmsg").textContent="Stop list copied."}catch(e){$("navmsg").textContent="Copy was blocked here."}};
+$("gpx").onclick=()=>{
+  if(!gpxText){$("navmsg").textContent="Plan a route first.";return}
+  const u=URL.createObjectURL(new Blob([gpxText],{type:"application/gpx+xml"})); const a=document.createElement("a"); a.href=u; a.download=gpxName(); document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),8000);
+  $("navmsg").textContent="Downloaded "+gpxName()+". Open it from Files or Downloads and choose OsmAnd, or use Share to OsmAnd.";
+};
+$("gpxshare").onclick=async()=>{
+  if(!gpxText){$("navmsg").textContent="Plan a route first.";return}
+  const f=new File([gpxText],gpxName(),{type:"application/gpx+xml"});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Wardrive route"})}catch(e){if(e.name!=="AbortError")$("navmsg").textContent="Sharing failed: "+e.message+". Use Download GPX."}}
+  else $("navmsg").textContent="This browser cannot share files. Use Download GPX."
+};
+
+
+/* ---------- server, areas, location ---------- */
+let REGIONS=[], gps=null, gpsNode=-1, buildTimer=null, DEST=null, destNode=-1, START_PLACE=null;
+async function api(path,opt){
+  const o=Object.assign({credentials:"same-origin"},opt||{});
+  if(o.method==="POST") o.headers=Object.assign({"X-RP":"1"},o.headers||{});
+  const r=await fetch(path,o);
+  if(r.status===401){location.href="/login";throw new Error("Signed out")}
+  const j=await r.json().catch(()=>({error:"Unreadable response from the Pi"}));
+  if(!r.ok&&!j.build) throw new Error(j.error||("Server error "+r.status));
+  return j;
+}
+function nearestCell(la,lo){let b=-1,bd=1e9;for(let v=0;v<N;v++){if(!isCell(v))continue;const d=hav(la,lo,NODES[v][LA],NODES[v][LO]);if(d<bd){bd=d;b=v}}return b}
+function fitAll(){let la0=99,la1=-99,lo0=999,lo1=-999;for(const n of NODES){if(n[ST]>=3)continue;la0=Math.min(la0,n[LA]);la1=Math.max(la1,n[LA]);lo0=Math.min(lo0,n[LO]);lo1=Math.max(lo1,n[LO])}fitTo(la0,la1,lo0,lo1)}
+async function loadHeat(){try{const j=await api("/api/heat");if(j.rows&&j.rows.length)loadHeatRows(j.rows,j.at);else{heat=new Map();heatAt=null}}catch(e){}heatText()}
+async function loadDensity(){try{const j=await api("/api/density");if(j.rows&&j.rows.length)loadDensityRows(j.rows,j.at);else{dens=new Map();densAt=null}}catch(e){}densText()}
+async function loadRegion(id){
+  $("status").textContent="Loading area...";
+  const pack=await api("/api/region/"+encodeURIComponent(id));
+  setupRegion(pack); S.region=id;
+  if(!(S.startRegion===id&&S.start>=0&&S.start<N)) S.start=HOME>=0?HOME:nearestCell(REG.lat,REG.lon);
+  {const g=gps?snapTo(gps.la,gps.lo):null; gpsNode=(g&&g.d<5)?g.v:-1}
+  S.startRegion=id; persist();
+  $("asof").textContent="Warroom data as of "+pack.asof+". Refreshes every 5 minutes on the Pi.";
+  fillRegionSelect(); updateDest(); refreshStartSelect(); syncTrip(); computeValues(); fitAll(); draw();
+}
+$("refresh").onclick=async()=>{try{await loadRegion(REG.id);await loadHeat();await loadDensity();computeValues();plan()}catch(e){$("status").innerHTML="<span class='err'>"+e.message+"</span>"}};
+function snapTo(la,lo){let b=-1,bd=1e9;for(let v=0;v<N;v++){const n=NODES[v]; if(n[ST]>=3&&!["A","B","Home","Office"].includes(n[NM]))continue; const d=hav(la,lo,n[LA],n[LO]); if(d<bd){bd=d;b=v}}return {v:b,d:bd}}
+function snapWarn(la,lo,label){const el=$('snapinfo'); if(la==null){el.textContent='';return} const s=snapTo(la,lo); el.innerHTML=s.d>5?"<span class='err'>"+label+" is about "+s.d.toFixed(0)+" km from the nearest mapped cell, so the route starts there. Build road data closer to it for a better start.</span>":''}
+const locate=(la,lo)=>api("/api/locate?lat="+la+"&lon="+lo);
+function startLL(){if(S.start<0||S.start>=N)return null;return [NODES[S.start][LA],NODES[S.start][LO]]}
+function startLabel(){if(START_PLACE)return START_PLACE.name; const o=$("start"); return o.selectedIndex>=0?o.options[o.selectedIndex].textContent:"Start"}
+function searchBox(inp,btn,res,onpick){
+  btn.onclick=async()=>{const q=inp.value.trim(); if(q.length<3){res.textContent="Type at least 3 characters.";return}
+    res.textContent="Searching...";
+    try{const j=await api("/api/geocode?q="+encodeURIComponent(q)); res.innerHTML="";
+      if(!j.results.length){res.textContent="Nothing found. Try adding the city and state.";return}
+      for(const p of j.results){const b=document.createElement("button");b.type="button";b.className="pick";b.textContent=p.display;b.onclick=()=>{res.innerHTML="";inp.value=p.name;onpick(p)};res.appendChild(b)}
+    }catch(e){res.innerHTML="<span class='err'>"+e.message+"</span>"}};
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();btn.click()}});
+}
+const afterAt=p=>async b=>{await loadRegion(b.id); const s=snapTo(p.lat,p.lon); gpsNode=s.v; setStart(s.v); refreshStartSelect(); updateDest(); plan()};
+async function goStart(p){
+  START_PLACE=p; $("status").textContent="Finding road data for "+p.name+"...";
+  try{const c=await locate(p.lat,p.lon);
+    if(!c.best){showBuildOffer(p.lat,p.lon,p.name);$("status").textContent=p.name+" is outside the saved areas.";return}
+    $("buildbox").style.display="none";
+    if(!REG||!c.covered.some(x=>x.id===REG.id)) await loadRegion(c.best);
+    const s=snapTo(p.lat,p.lon); gpsNode=s.v; setStart(s.v); refreshStartSelect(); updateDest(); snapWarn(p.lat,p.lon,p.name); plan();
+  }catch(e){$("status").innerHTML="<span class='err'>"+e.message+"</span>"}
+}
+async function setDest(p){
+  DEST=p; $("status").textContent="Checking road data to "+p.name+"...";
+  try{
+    const sl=startLL(); let common=[];
+    if(sl){const [a,b]=await Promise.all([locate(sl[0],sl[1]),locate(p.lat,p.lon)]); const ids=new Set(b.covered.map(x=>x.id)); common=a.covered.filter(x=>ids.has(x.id))}
+    if(common.length&&!common.some(x=>REG&&x.id===REG.id)){await loadRegion(common[0].id)}
+    updateDest();
+    if(destNode>=0){S.trip="dest";persist();syncTrip();const d=dist[S.start*N+destNode]*S.speed/60;S.budget=Math.min(600,Math.max(S.budget,Math.ceil(d/5)*5+30));$("budget").value=S.budget;syncBudget();plan()}
+    else $("status").textContent=p.name+" is not covered yet. Build a route to it below."
+  }catch(e){$("status").innerHTML="<span class='err'>"+e.message+"</span>"}
+}
+function updateDest(){
+  const box=$("dinfo"), c2=$("chips2"); c2.innerHTML="";
+  if(!DEST||N===0){destNode=-1;box.textContent="";syncTrip();return}
+  const s=snapTo(DEST.lat,DEST.lon); destNode=s.d<8?s.v:-1; syncTrip();
+  if(destNode>=0){
+    const d=S.start>=0&&S.start<N?dist[S.start*N+destNode]*S.speed/60:NaN;
+    box.innerHTML="Destination: <b>"+DEST.name+"</b>"+(isFinite(d)?". Direct drive about <b>"+Math.round(d)+" min</b>. Choose \"One way, end at destination\" in Trip and set the budget above that.":".");
+    if(isFinite(d)) for(const x of [30,60,120]){const b=document.createElement("button");b.type="button";b.className="chip";b.textContent="direct +"+x;b.onclick=()=>{S.trip="dest";S.budget=Math.min(600,Math.ceil(d/5)*5+x);$("budget").value=S.budget;syncTrip();syncBudget();persist();plan()};c2.appendChild(b)}
+  }else{
+    const sl=startLL();
+    box.innerHTML="<b>"+DEST.name+"</b> is outside this area. Building a route area follows the roads from start to destination and keeps it. It uses the free public road server, so a long drive can take 25 to 45 minutes, in the background.<div class='row' style='margin-top:8px'><button type='button' id='cgo'>Build route to "+DEST.name.replace(/</g,"")+"</button></div>";
+    $("cgo").onclick=()=>{ if(!sl){return}
+      startBuild({corridor:{a:[sl[0],sl[1],startLabel()],b:[DEST.lat,DEST.lon,DEST.name]}},async b=>{await loadRegion(b.id);const a=snapTo(sl[0],sl[1]);setStart(a.v);S.trip="dest";persist();refreshStartSelect();updateDest();syncTrip();plan()})};
+  }
+}
+$("dclr").onclick=()=>{DEST=null;$("daddr").value="";$("dres").innerHTML="";if(S.trip==="dest"){S.trip="round";persist()}updateDest();syncTrip();plan()};
+$("trip").addEventListener("change",()=>{});
+searchBox($("saddr"),$("sgo"),$("sres"),goStart);
+searchBox($("daddr"),$("dgo"),$("dres"),setDest);
+
+$("gps").onclick=()=>{
+  if(!navigator.geolocation){$("status").textContent="This browser has no location access.";return}
+  $("status").textContent="Getting your location...";
+  navigator.geolocation.getCurrentPosition(p=>useLocation(p.coords.latitude,p.coords.longitude,false),e=>{$("status").innerHTML="<span class='err'>Location unavailable: "+e.message+". Allow location for this site in the browser settings.</span>"},{enableHighAccuracy:true,timeout:20000,maximumAge:5000});
+};
+async function useLocation(la,lo,auto){
+  gps={la,lo}; START_PLACE=null;
+  try{
+    const c=await locate(la,lo);
+    if(!c.best){
+      draw();
+      if(auto){$("status").textContent="You are outside the saved areas. Building road data here in the background.";startBuild({lat:la,lon:lo},afterAt({lat:la,lon:lo}),true)}
+      else{showBuildOffer(la,lo,"");$("status").textContent="You are outside the areas with road data."}
+      return}
+    $("buildbox").style.display="none";
+    if(!REG||!c.covered.some(x=>x.id===REG.id)) await loadRegion(c.best);
+    const s=snapTo(la,lo); gpsNode=s.v; setStart(s.v); refreshStartSelect(); updateDest(); snapWarn(la,lo,'Your location'); plan();
+  }catch(e){$("status").innerHTML="<span class='err'>"+e.message+"</span>"}
+}
+function showBuildOffer(la,lo,name){
+  const b=$("buildbox"); b.style.display="block";
+  b.innerHTML="<b>No road data for this spot.</b><p class='note' style='margin:6px 0'>Building takes 10 to 25 minutes on the Pi. It covers about 40 km around the point, including unvisited cells and is kept for next time.</p><div class='row'><input id='bname' class='in' type='text' value='"+(name||"").replace(/['<]/g,"")+"' placeholder='Name (optional)' aria-label='Area name'><button id='bgo' type='button'>Build road data here</button></div>";
+  $("bgo").onclick=()=>startBuild({lat:la,lon:lo,name:$("bname").value},afterAt({lat:la,lon:lo}));
+}
+async function startBuild(body,after,quiet){
+  try{const j=await api("/api/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    if(!j.started&&!(j.build&&j.build.running)){$("addmsg").textContent="Could not start the build.";return}
+    if(!j.started&&j.build&&j.build.running){$("status").textContent="Another build is already running. Wait for it to finish."}
+    pollBuild(after)}
+  catch(e){$("buildbox").style.display="block";$("buildbox").innerHTML="<span class='err'>"+e.message+"</span>";$("addmsg").textContent=e.message}
+}
+function pollBuild(after){
+  clearInterval(buildTimer); const box=$("buildbox"); box.style.display="block"; box.textContent="Starting build...";
+  buildTimer=setInterval(async()=>{
+    try{const b=await api("/api/build/status");
+      if(b.running){const pct=b.total?Math.round(100*b.done/b.total):0;box.innerHTML="<b>Building "+b.name+"</b><p class='note'>"+b.step+(b.total?" ("+pct+"%)":"")+". You can use the page meanwhile, leave it open or come back.</p>";$("addmsg").textContent=b.name+": "+b.step+(b.total?" "+pct+"%":"");return}
+      clearInterval(buildTimer);
+      if(b.error){box.innerHTML="<span class='err'>Build failed: "+b.error+"</span>";$("addmsg").textContent="Build failed: "+b.error;return}
+      REGIONS=(await api("/api/regions")).regions; box.style.display="none"; $("addmsg").textContent=b.name+" is ready. Pick it in Area.";
+      if(after){await after(b)}else{fillRegionSelect()}
+    }catch(e){}
+  },3000);
+}
+$("addbtn").onclick=()=>{const q=$("addq").value.trim(); if(!q){$("addmsg").textContent="Type a city or address.";return} $("addmsg").textContent="Looking up "+q+"..."; startBuild({query:q},null)};
+function autoLocate(){
+  if(!navigator.geolocation)return;
+  navigator.geolocation.getCurrentPosition(p=>useLocation(p.coords.latitude,p.coords.longitude,true),()=>{},{enableHighAccuracy:false,timeout:15000,maximumAge:120000});
+}
+
+async function boot(){
+  buildControls(); resize(); window.addEventListener("resize",resize);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+  new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  try{
+    const r=await api("/api/regions"); REGIONS=r.regions;
+    await loadHeat(); await loadDensity();
+    if(!REGIONS.length){$("status").textContent="No road data on the Pi yet. Add an area below.";return}
+    await loadRegion(REGIONS.find(x=>x.id===S.region)?S.region:REGIONS[0].id);
+    plan();
+    if(r.build&&r.build.running) pollBuild(null);
+    else autoLocate();
+  }catch(e){$("status").innerHTML="<span class='err'>"+e.message+"</span>"}
+}
+
+boot();
+</script>
+</body>
+</html>
