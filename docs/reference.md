@@ -48,7 +48,7 @@ Your own WiGLE coverage per cell. Header:
 i,j,lat,lon,obs,nets,wifi_nets,ble_nets,files,first,last
 ```
 
-Only `i`, `j` and `wifi_nets` are required for upload. `ble_nets` and `nets` are used if present. The page treats `wifi_nets` as WiFi networks you have already captured in the cell. Replace it every 60 days (30 to 90 works). Generate it from your WiGLE exports with your own tooling.
+Only `i`, `j` and `wifi_nets` are required for upload. `ble_nets` and `nets` are used if present. The page treats `wifi_nets` as WiFi networks you have already captured in the cell. Replace it every 60 days (30 to 90 works). Generate it with [`wigle_cell_heat.py`](https://github.com/FusedStamen/Wigle/tree/main/wigle_cell_heat) from your WiGLE export files: `py wigle_cell_heat/wigle_cell_heat.py "<folder of exports>"`. It writes `wigle_cell_heat.csv` into that folder. Upload that file in the page or copy it to `data/`.
 
 ### `wigle_density.csv`
 
