@@ -25,7 +25,7 @@ Presence saturates quickly. A cell expected to give about 1.5 new WiFi is alread
 | Capture rate, your cells | 0.10 | The same for cells you already hold |
 | Rescan rate of your APs | 0.03 | Share of your existing APs in a cell that a pass rescans (capped at 800 per cell) |
 | BLE per new WiFi | 2.6 | Expected new BLE for each new WiFi |
-| Max new WiFi per cell | 2500 | Upper limit on the estimate for one cell |
+| Max new WiFi per cell | 3000 | Upper limit on the estimate for one cell |
 | New WiFi guess, unvisited cell (last resort) | 1.5 | Used only when there is no density and no charted neighbor |
 | WiGLE density factor (0 = auto fit) | 0 | Expected holder count per recent WiGLE network. 0 fits it from your data |
 | Neighbor fallback fraction | 0.5 | Share of the nearby average holder count assumed for an unvisited cell without density |
