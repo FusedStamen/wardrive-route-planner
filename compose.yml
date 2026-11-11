@@ -1,0 +1,19 @@
+services:
+  routeplanner:
+    build: .
+    container_name: routeplanner
+    restart: unless-stopped
+    user: "1000:1000"
+    env_file: .env
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+    volumes:
+      - ./data:/data
+      - ./app:/app:ro
+    ports:
+      - "8090:8080"
+    networks:
+      - proxy
+networks:
+  proxy:
+    external: true
