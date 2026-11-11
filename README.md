@@ -2,7 +2,7 @@
 
 A private, phone-first route planner for wardriving. You give it a start point, an optional destination, a drive-time budget and how much you care about different kinds of gain. It returns one driving route with estimated gains, a GPX track and Apple Maps legs.
 
-It is built for the WatchDogsGo / WDGoWars game and reads live cell state from a self-hosted [warroom](#requirements) instance. It also uses two optional files built from WiGLE data: your own coverage ("cell heat") and recent network density, which lets it value cells nobody has recorded yet.
+It is built for the WatchDogsGo / WDGoWars game and reads live cell state from a self-hosted [warroom](#related-projects) instance. It also uses two optional files built from WiGLE data: your own coverage ("cell heat") and recent network density, which lets it value cells nobody has recorded yet.
 
 It runs as a single small Docker container (Python standard library only, one HTML page with a canvas map). It was written for a Raspberry Pi 5 behind a Cloudflare Tunnel and used from Safari on an iPhone, but nothing in it is specific to that.
 
