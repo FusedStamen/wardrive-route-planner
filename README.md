@@ -45,6 +45,8 @@ Be clear about what has and has not been checked:
 - Estimated gain on the route: new cells (presence), new WiFi, new BLE, XP, cell flips, plus a table of gain versus driving time so you can see where extra minutes stop paying off.
 - A map of the cells coloured by owner and by value for your weights, with the route on top.
 - Navigation outputs: GPX download (follows the road exactly, for OsmAnd or similar) and Apple Maps legs about 7 minutes apart.
+- A Roads setting: Local roads (avoids highway-speed roads), Balanced (the default, uses them at a discount) or Transit (highways at normal cost, for long drives between areas). Highway roads are detected from their average speed, not their label, so a busy main road with businesses is not treated as an interstate.
+- Readouts for miles driven, highway-speed miles (estimated) and retraced road (the share of the route that repeats a road already driven), plus a stops list showing how many minutes and how much score each stop adds.
 - Address search for start and destination, "use my location", and automatic road-data builds for places you have not been before, including long corridor builds for drives between areas.
 - Unvisited cells (a road but no warroom cell) are included and valued from recent WiGLE density when you provide it, from nearby charted cells when you do not.
 
@@ -52,8 +54,9 @@ Be clear about what has and has not been checked:
 
 - A Docker host (tested on a Raspberry Pi 5, 8 GB).
 - A [warroom](#related-projects) instance and a read-only bearer token for it. The planner polls its `/api/state` every 5 minutes. The token stays on the server and is never sent to the browser.
-- Internet access from the container for road routing (OSRM) and place search (Nominatim). See [Road data](#road-data).
+- Internet access from the container for road routing (OSRM) and place search (Nominatim). See [Road data](#road-data). The browser needs internet for map tiles if you use the Tiles option.
 - Optional: a WiGLE account with API access, to build the density file ([docs/density.md](docs/density.md)).
+- Optional: a free [Stadia Maps](https://stadiamaps.com) API key, to draw street-name map tiles under the cells (the Tiles button). Without a key the plain road lines are shown.
 
 ## Install
 
@@ -87,8 +90,9 @@ See `.env.example`. `.env` is ignored by git.
 
 1. Pick or search a start, optionally a destination, then set the drive-time budget and the "What matters" weights (0 to 10).
 2. Tap "Plan route". Compare the gain table, the map and the "Best cells on this route" list.
-3. For navigation, load the GPX in OsmAnd (or similar), or tap the Apple Maps legs in order.
-4. Before a trip, open "Add an area ahead of time" and build the area you will drive in. Opening the page in a new place also offers to build road data from your location.
+3. Choose a Roads setting before planning. Local roads suits wardriving in and around a city, Transit suits long drives where you only want a few high-value stops off the highway.
+4. For navigation, load the GPX in OsmAnd (or similar), or tap the Apple Maps legs in order.
+5. Before a trip, open "Add an area ahead of time" and build the area you will drive in. Opening the page in a new place also offers to build road data from your location.
 
 Weights and assumptions are explained in [docs/tuning.md](docs/tuning.md).
 
@@ -128,6 +132,9 @@ Both are uploaded in the page (each has its own card) or copied into `data/`. Fo
 - This is a single-user design with one shared password. Do not expose it without HTTPS.
 - Your drives and coverage live in `data/` (`regions/`, `flips.json`, the two CSV files). `.gitignore` excludes `data/` and `app/seed/`. Packs can contain "Home" and "Office" points, so do not commit them.
 - The warroom token is read-only and stays on the server.
+- The Stadia Maps key is stored only in that browser's local storage. It is never sent to the Pi and is not in this repository, so enter it once on each device. Tiles load directly from Stadia in the browser.
+- Settings you change (weights, assumptions, Roads, start) are saved per browser. An old saved value overrides a new default, so press Reset to defaults after an update if a setting looks off.
+- WiGLE data: the heat and density files are built from your own WiGLE account and are for your personal, non-commercial use under WiGLE's license. Do not commit them, share them, or give other people access to a copy that holds your data. Anyone else running the planner should use their own WiGLE account and token.
 
 ## Troubleshooting
 
